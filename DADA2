@@ -148,5 +148,5 @@ ps.top20 <- prune_taxa(top20, ps.top20)
 plot_bar(ps.top20, x="Day", fill="Family") + facet_wrap(~When, scales="free_x")
 
 #Reference to:
-#I follow the next guide to do this analysis:
+#I followed the next guide to build this analysis:
 #https://benjjneb.github.io/dada2/tutorial.html 
