@@ -82,7 +82,7 @@ find . -name "salmon_quant.log" | xargs grep "Mapping rate"
 ########################################################################################################################
 ########################################################################################################################
 
-#DIFFERENTIAL EXPRESED GENES ANALYSIS IN R LENGUAGE
+#DIFFERENTIAL EXPRESSED GENE ANALYSIS IN R LENGUAGE
 library(tximport)
 library(dplyr)
 library(ggplot2)
@@ -95,7 +95,7 @@ files <- list.files(path = "c:/Entrenamiento_bioinfo/Salmon_results"
 names(files) <- stringr::str_split(files, pattern = "/", simplify = TRUE)[,5] %>%
   stringr::str_replace("_quant", "")
 
-#Preare tx2gene file
+#Prepare tx2gene file
 #Read data of genome annotation again. Previous cp from original directory to this directory. 
 #gtf is a GRanges object. 
 gtf <- rtracklayer::import("c:/Entrenamiento_bioinfo/Salmon_results/gencode.v45.basic.annotation.gtf.gz")
@@ -152,7 +152,7 @@ res %>% as.data.frame() %>%
 plotMA(res, ylim = c(-5, 5))
 
 
-#Show 20 expressered genes in our samples
+#Show 20 expressed genes in our samples
 library(readr)
 
 #Convert results to data.frame and add gene names.
