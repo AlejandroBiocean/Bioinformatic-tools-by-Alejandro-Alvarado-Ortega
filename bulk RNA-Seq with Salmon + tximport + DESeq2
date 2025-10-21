@@ -1,0 +1,190 @@
+#QUANTIFY TRANSCRIPT´S ABUNDANCE USING A TRANSCRIPTOMIC INDEX AND A QUASY-ALIGNED MAP WITH SALMON IN LINUX CONSOLE
+
+#Download ENA/SRA access
+conda create -n fastq-dl -c conda-forge -c bioconda fastq-dl
+conda activate fastq-dl
+
+conda config --add channels conda-forge
+conda config --add channels bioconda
+conda create -n fastq_download -c conda-forge -c bioconda fastq-dl
+conda activate fastq_download 
+
+#I´m using data from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE197576 
+
+#I´m using 4 samples.
+#Create a directories for run Salmon 
+mkdir hypoxia_RNAseq
+cd hypoxia_RNAseq
+
+mkdir data
+cd data
+# Sometimes the same experiment may have multiple runs (SRR)
+# use the --group-by-experiment to merge them, this example only has one SRR per sample   
+
+# normoxia sgCTRL
+fastq-dl --accession SRX14311105  --group-by-experiment
+fastq-dl --accession SRX14311106  --group-by-experiment
+
+# hypoxia sgCTRL
+fastq-dl --accession SRX14311111  --group-by-experiment
+fastq-dl --accession SRX14311112  --group-by-experiment
+
+#Install Salmon
+conda create -n salmon salmon
+
+#Download reference FASTA file to compare sequences
+#Create a directory reference 
+cd hypoxia_RNAseq
+mkdir reference
+cd reference
+
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_45/gencode.v45.annotation.gtf.gz
+
+
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_45/gencode.v45.basic.annotation.gtf.gz
+
+#Download FASTA transcripts file
+wget https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_45/gencode.v45.transcripts.fa.gz
+
+#Index transcriptom
+
+#List all the conda env
+conda env list
+
+#Activate the salmon env
+conda activate salmon
+
+salmon index -t gencode.v45.transcripts.fa.gz -i gencode.v45_human_index -k 31 --gencode 
+
+Make sure you know how the library is constructed. I used -l A to automatically let salmon to detect the library type. salmon detected it as U unstranded.
+cd ..
+
+salmon quant -i reference/gencode.v45_human_index/ -l A -r SRX14311105.fastq.gz -o SRX14311105_quant  --validateMappings
+
+#Visualize maping results.
+cat SRX14311105_quant/logs/salmon_quant.log | grep "Mapping rate"
+
+#Map the other sequences
+salmon quant -i reference/gencode.v45_human_index/ -l A -r SRX14311106.fastq.gz -o SRX14311106_quant  --validateMappings
+
+salmon quant -i reference/gencode.v45_human_index/ -l A -r SRX14311111.fastq.gz -o SRX14311111_quant  --validateMappings
+
+salmon quant -i reference/gencode.v45_human_index/ -l A -r SRX14311112.fastq.gz -o SRX14311112_quant  --validateMappings
+
+#To found Salmon´s outputs
+find . -name "*sf" 
+
+#To find best results maps
+find . -name "salmon_quant.log" | xargs grep "Mapping rate" 
+
+#I copied and pasted to a directory where i´m going to continue with analysis with DESeq2 package, in R language. 
+
+########################################################################################################################
+########################################################################################################################
+
+#DIFFERENTIAL EXPRESED GENES ANALYSIS IN R LENGUAGE
+library(tximport)
+library(dplyr)
+library(ggplot2)
+
+#Define files results from Salmon and their names. 
+files <- list.files(path = "c:/Entrenamiento_bioinfo/Salmon_results"
+, pattern = ".sf", full.names = TRUE, 
+                   recursive = TRUE)
+
+names(files) <- stringr::str_split(files, pattern = "/", simplify = TRUE)[,5] %>%
+  stringr::str_replace("_quant", "")
+
+#Preare tx2gene file
+#Read data of genome annotation again. Previous cp from original directory to this directory. 
+#gtf is a GRanges object. 
+gtf <- rtracklayer::import("c:/Entrenamiento_bioinfo/Salmon_results/gencode.v45.basic.annotation.gtf.gz")
+
+head(gtf)
+
+#Convert to data.frame.
+gtf_df <- as.data.frame(gtf)
+
+#Transcript level to gene level
+tx2gene<- gtf_df %>%
+  filter(type == "transcript") %>%
+  select(transcript_id, gene_id)
+
+#Map the ENSEMBL gene id to gene symbols in DESeq2 results.
+gene_name_map<- gtf_df %>% 
+  filter(type == "gene") %>% 
+  select(gene_id, gene_name) 
+
+#Read in the Salmon output.
+
+#Use tx2gene to summarize to gene level
+txi.salmon <- tximport(files, type = "salmon", tx2gene = tx2gene)
+
+#Build and execute DESeq2
+#Define colnames
+library(DESeq2)
+meta<- data.frame(condition = c("normoxia", "normoxia", "hypoxia", "hypoxia"))
+
+rownames(meta)<- colnames(txi.salmon$counts)
+
+meta
+
+#DESeq2 workflow
+dds <- DESeqDataSetFromTximport(txi.salmon, meta, ~ condition)
+
+dds$condition <- relevel(dds$condition, ref = "normoxia")
+
+dds <- DESeq(dds)
+
+res <- results(dds, contrast = c("condition", "hypoxia", "normoxia"))
+
+res
+
+
+#Show p-value distribution in a histogram.
+res %>% as.data.frame() %>%
+  arrange(padj) %>%
+  ggplot(aes(x=pvalue)) +
+  geom_histogram(color = "white", bins = 50)
+
+
+#Show MA plot
+plotMA(res, ylim = c(-5, 5))
+
+
+#Show 20 expressered genes in our samples
+library(readr)
+
+#Convert results to data.frame and add gene names.
+res_df <- as.data.frame(res) %>%
+  tibble::rownames_to_column("gene_id") %>%
+  left_join(gene_name_map, by = "gene_id")
+
+#Filter significative genes (padj < 0.05) and log2FC > 1.
+res_sig <- res_df %>%
+  filter(!is.na(padj)) %>%
+  filter(padj < 0.05, abs(log2FoldChange) > 1)
+
+#Order by padj and select 20 most significatives.
+top20 <- res_sig %>%
+  arrange(padj) %>%
+  slice(1:20)
+
+print(top20)
+
+#If you want to see more differential expresed genes: 
+#Show differentially expresed genes number. 
+is.na(res)
+sum(is.na(res))
+na.omit(res)
+
+genes_differentially_expr <- sum(res$padj < 0.05, na.rm = TRUE) 
+genes_differentially_expr
+
+#Order by p-value adjusted (padj).
+res_orden <- res[order(na.omit(res$padj)), ]
+write.table(res_orden, file = "analysis_differentially_genes_results.tsv", sep = "\t", quote = FALSE, row.names = TRUE)
+
+differentially_expression_data <- read.table("analysis_differentially_genes_results.tsv", header = TRUE, sep = "\t")
+differentially_expression_data  
+
