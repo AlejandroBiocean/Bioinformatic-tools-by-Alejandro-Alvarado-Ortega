@@ -2,7 +2,7 @@
 
 #Download ENA/SRA access
 conda create -n fastq-dl -c conda-forge -c bioconda fastq-dl
-conda activate fastq-dl
+conda activate fastq-dl 
 
 conda config --add channels conda-forge
 conda config --add channels bioconda
