@@ -56,9 +56,12 @@ conda activate salmon
 
 salmon index -t gencode.v45.transcripts.fa.gz -i gencode.v45_human_index -k 31 --gencode 
 
-Make sure you know how the library is constructed. I used -l A to automatically let salmon to detect the library type. salmon detected it as U unstranded.
+#Make sure you know how the library is constructed. I used -l A to automatically let salmon to detect the library type. salmon detected it as U unstranded.
 cd ..
 
+#-r is for single-end.
+#-1 and -2 are for paired-end. 
+#We are working with single-end. 
 salmon quant -i reference/gencode.v45_human_index/ -l A -r SRX14311105.fastq.gz -o SRX14311105_quant  --validateMappings
 
 #Visualize maping results.
