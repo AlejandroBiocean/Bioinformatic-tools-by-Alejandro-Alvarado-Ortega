@@ -9,7 +9,6 @@ This repository have and develop bioinformatic tools, scripts and pipelines. Inc
 
 Now are avaible:
 _ DADA2 for ASVs analysis.
-_ Salmon / STARsolo / Alevin-fry for RNA-Seq. 
 _ DESeq2 for differential expression analysis. 
 
 ## Requirements
